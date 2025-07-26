@@ -1,0 +1,173 @@
+const std = @import("std");
+const ir = @import("ir.zig");
+const Iterator = @import("Iterator.zig").Iterator;
+
+const Self = @This();
+
+allocator: std.mem.Allocator,
+assembly: std.ArrayList(u8),
+instructions: ir.Instructions,
+instruction_iterator: Iterator(ir.Instruction),
+indents: usize = 0,
+
+pub fn init(instructions: ir.Instructions) Self {
+    return .{
+        .allocator = instructions.allocator,
+        .assembly = std.ArrayList(u8).init(instructions.allocator),
+        .instructions = instructions,
+        .instruction_iterator = Iterator(ir.Instruction).init(instructions.instructions.items),
+    };
+}
+
+fn emitBoilerplate(self: *Self) !void {
+    try self.assembly.appendSlice(
+        \\.section .bss
+        \\buffer:
+        \\    .skip 16384
+        \\
+        \\.section .text
+        \\.global _start
+        \\
+        \\print:
+        \\    pushq %rdi
+        \\    movq $1, %rax
+        \\    movq %rdi, %rsi
+        \\    movq $1, %rdi
+        \\    movq $1, %rdx
+        \\    syscall
+        \\    popq %rdi
+        \\    retq
+        \\
+        \\input:
+        \\    pushq %rdi
+        \\    xorq %rax, %rax
+        \\    movq %rdi, %rsi
+        \\    xorq %rdi, %rdi
+        \\    movq $1, %rdx
+        \\    syscall
+        \\    popq %rdi
+        \\    retq
+        \\
+        \\_start:
+        \\    xorq %rax, %rax
+        \\    leaq buffer(%rip), %rdi
+        \\
+    );
+    self.indents += 1;
+}
+
+fn emitExitSuccess(self: *Self) !void {
+    try self.emitIndent("movq $60, %rax\n");
+    try self.emitIndent("movq $0, %rdi\n");
+    try self.emitIndent("syscall\n");
+}
+
+fn emit(self: *Self, assembly: []const u8) !void {
+    try self.assembly.appendSlice(assembly);
+}
+
+fn emitIndent(self: *Self, assembly: []const u8) !void {
+    try self.indent();
+    try self.emit(assembly);
+}
+
+fn indent(self: *Self) !void {
+    for (0..self.indents) |_| {
+        try self.assembly.appendSlice("    ");
+    }
+}
+
+const Commands = struct {
+    fn emitPlus(self: *Self, n: u64) !void {
+        const assembly = try std.fmt.allocPrint(self.allocator, "addb ${d}, (%rdi)\n", .{n});
+        defer self.allocator.free(assembly);
+
+        try self.emitIndent(assembly);
+    }
+
+    fn emitMinus(self: *Self, n: u64) !void {
+        const assembly = try std.fmt.allocPrint(self.allocator, "subb ${d}, (%rdi)\n", .{n});
+        defer self.allocator.free(assembly);
+
+        try self.emitIndent(assembly);
+    }
+
+    fn emitLeft(self: *Self, n: u64) !void {
+        const assembly = try std.fmt.allocPrint(self.allocator, "subq ${d}, %rdi\n", .{n});
+        defer self.allocator.free(assembly);
+
+        try self.emitIndent(assembly);
+    }
+
+    fn emitRight(self: *Self, n: u64) !void {
+        const assembly = try std.fmt.allocPrint(self.allocator, "addq ${d}, %rdi\n", .{n});
+        defer self.allocator.free(assembly);
+
+        try self.emitIndent(assembly);
+    }
+
+    fn emitLoopStart(self: *Self, start: anytype) !void {
+        const name = start.name;
+        try self.emitIndent(name);
+        try self.emit(":\n");
+        self.indents += 1;
+        try self.emitIndent("movb (%rdi), %cl\n");
+        try self.emitIndent("testb %cl, (%rdi)\n");
+
+        const identifier = name[10..];
+
+        try self.emitIndent("jz LOOP_END");
+        try self.emit(identifier);
+        try self.emit("\n");
+    }
+
+    fn emitLoopEnd(self: *Self, end: anytype) !void {
+        const start_name = self.instructions.instructions.items[end.start_index].loop_start.name;
+        try self.emitIndent("movb (%rdi), %cl\n");
+        try self.emitIndent("testb %cl, (%rdi)\n");
+        const identifier = start_name[10..];
+        try self.emitIndent("jnz ");
+        try self.emit(start_name);
+        try self.emit("\n");
+        self.indents -= 1;
+
+        try self.emitIndent("LOOP_END");
+        try self.emit(identifier);
+        try self.emit(":\n");
+    }
+
+    fn emitPrint(self: *Self) !void {
+        try self.emitIndent("callq print\n");
+    }
+
+    fn emitInput(self: *Self) !void {
+        try self.emitIndent("callq input\n");
+    }
+
+    fn emitZero(self: *Self) !void {
+        try self.emitIndent("movb $0, (%rdi)\n");
+    }
+};
+
+fn emitNext(self: *Self) !?void {
+    const instruction = self.instruction_iterator.next() orelse return null;
+
+    switch (instruction) {
+        .plus => |n| try Commands.emitPlus(self, n),
+        .minus => |n| try Commands.emitMinus(self, n),
+        .left => |n| try Commands.emitLeft(self, n),
+        .right => |n| try Commands.emitRight(self, n),
+
+        .loop_start => |start| try Commands.emitLoopStart(self, start),
+        .loop_end => |end| try Commands.emitLoopEnd(self, end),
+        .print => try Commands.emitPrint(self),
+        .input => try Commands.emitInput(self),
+        .zero => try Commands.emitZero(self),
+    }
+}
+
+pub fn compile(self: *Self) !void {
+    try self.emitBoilerplate();
+    while (try self.emitNext()) |_| {}
+    try self.emitExitSuccess();
+}
