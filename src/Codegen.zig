@@ -21,10 +21,6 @@ pub fn init(ir: Ir) Self {
 
 fn emitBoilerplate(self: *Self) !void {
     try self.assembly.appendSlice(
-        \\.section .bss
-        \\buffer:
-        \\    .skip 32768
-        \\
         \\.section .text
         \\.global _start
         \\
@@ -49,16 +45,40 @@ fn emitBoilerplate(self: *Self) !void {
         \\    retq
         \\
         \\_start:
-        \\    xorq %rax, %rax
-        \\    leaq buffer(%rip), %rdi
+        \\    movq $9, %rax
+        \\    xorq %rdi, %rdi
+        \\    movq $65536, %rsi
+        \\    movq $3, %rdx
+        \\    movq $34, %r10
+        \\    movq $-1, %r8
+        \\    xorq %r9, %r9
+        \\    syscall
+        \\    movq %rax, %rdi
+        \\    pushq %rax
+        \\    cmp $-1, %rax
+        \\    je EXIT_FAILURE
         \\
     );
     self.indents += 1;
 }
 
-fn emitExitSuccess(self: *Self) !void {
+fn emitExit(self: *Self) !void {
+    try self.emitIndent("popq %rdi\n");
+    try self.emitIndent("movq $11, %rax\n");
+    try self.emitIndent("movq $65536, %rsi\n");
+    try self.emitIndent("syscall\n");
+
+    try self.emitIndent("cmp $-1, %rax\n");
+    try self.emitIndent("je EXIT_FAILURE\n");
+
     try self.emitIndent("movq $60, %rax\n");
     try self.emitIndent("movq $0, %rdi\n");
+    try self.emitIndent("syscall\n");
+
+    try self.emitIndent("EXIT_FAILURE:\n");
+    self.indents += 1;
+    try self.emitIndent("movq $60, %rax\n");
+    try self.emitIndent("movq $1, %rdi\n");
     try self.emitIndent("syscall\n");
 }
 
@@ -169,5 +189,5 @@ fn emitNext(self: *Self) !?void {
 pub fn compile(self: *Self) !void {
     try self.emitBoilerplate();
     while (try self.emitNext()) |_| {}
-    try self.emitExitSuccess();
+    try self.emitExit();
 }
