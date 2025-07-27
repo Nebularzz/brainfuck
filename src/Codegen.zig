@@ -32,7 +32,7 @@ fn emitExit(self: *Self) !void {
     try self.emitIndent("movq $65536, %rsi\n");
     try self.emitIndent("syscall\n");
 
-    // check for error if and jump if errorneous
+    // check for error if and jump if erroneous
     try self.emitIndent("cmp $-1, %rax\n");
     try self.emitIndent("je EXIT_FAILURE\n");
 
