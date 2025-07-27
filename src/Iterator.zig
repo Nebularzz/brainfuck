@@ -26,5 +26,10 @@ pub fn Iterator(comptime T: type) type {
             self.index -= 1;
             return self.items[self.index];
         }
+
+        pub fn goBack(self: *Self, n: usize) void {
+            for (0..n) |_|
+                _ = self.previous();
+        }
     };
 }

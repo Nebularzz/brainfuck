@@ -1,21 +1,21 @@
 const std = @import("std");
-const ir = @import("ir.zig");
+const Ir = @import("Ir/Ir.zig");
 const Iterator = @import("Iterator.zig").Iterator;
 
 const Self = @This();
 
 allocator: std.mem.Allocator,
 assembly: std.ArrayList(u8),
-instructions: ir.Instructions,
-instruction_iterator: Iterator(ir.Instruction),
+instructions: Ir,
+instruction_iterator: Iterator(Ir.Instruction),
 indents: usize = 0,
 
-pub fn init(instructions: ir.Instructions) Self {
+pub fn init(ir: Ir) Self {
     return .{
-        .allocator = instructions.allocator,
-        .assembly = std.ArrayList(u8).init(instructions.allocator),
-        .instructions = instructions,
-        .instruction_iterator = Iterator(ir.Instruction).init(instructions.instructions.items),
+        .allocator = ir.instructions.allocator,
+        .assembly = std.ArrayList(u8).init(ir.instructions.allocator),
+        .instructions = ir,
+        .instruction_iterator = Iterator(Ir.Instruction).init(ir.instructions.items),
     };
 }
 

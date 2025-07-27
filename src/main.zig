@@ -1,5 +1,5 @@
 const std = @import("std");
-const ir = @import("ir.zig");
+const Ir = @import("Ir/Ir.zig");
 const Codegen = @import("Codegen.zig");
 
 const InternalError = error{
@@ -33,10 +33,11 @@ pub fn main() !void {
     const content = try source_file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
     defer allocator.free(content);
 
-    const bf = try ir.parseBrainFuck(allocator, content);
-    defer bf.deinit();
+    var ir = try Ir.init(allocator, content);
+    defer ir.deinit();
+    try ir.optimize();
 
-    var codegen = Codegen.init(bf);
+    var codegen = Codegen.init(ir);
     defer codegen.assembly.deinit();
     try codegen.compile();
 
@@ -50,17 +51,18 @@ pub fn main() !void {
     const assembly_filename = try std.fmt.allocPrint(allocator, "bf-out/{s}.s", .{stem});
     defer allocator.free(assembly_filename);
 
+    const object_filename = try std.fmt.allocPrint(allocator, "bf-out/{s}.o", .{stem});
+    defer allocator.free(object_filename);
+
+    const executable_filename = try std.fmt.allocPrint(allocator, "bf-out/{s}", .{stem});
+    defer allocator.free(executable_filename);
+
     const assembly_file = try std.fs.cwd().createFile(assembly_filename, .{});
     defer assembly_file.close();
 
     try assembly_file.writeAll(codegen.assembly.items);
 
-    const object_filename = try std.fmt.allocPrint(allocator, "bf-out/{s}.o", .{stem});
-    defer allocator.free(object_filename);
-
-    var as_process = std.process.Child.init(&.{ "as", assembly_filename, "-o", object_filename }, allocator);
-    try as_process.spawn();
-    const as_term = try as_process.wait();
+    const as_term = try assemble(allocator, assembly_filename, object_filename);
 
     switch (as_term) {
         .Exited => |code| if (code != 0) {
@@ -70,12 +72,7 @@ pub fn main() !void {
         else => try stderr.print("fatal error when executing as: {any}\n", .{as_term}),
     }
 
-    const executable_filename = try std.fmt.allocPrint(allocator, "bf-out/{s}", .{stem});
-    defer allocator.free(executable_filename);
-
-    var ld_process = std.process.Child.init(&.{ "ld", object_filename, "-o", executable_filename }, allocator);
-    try ld_process.spawn();
-    const ld_term = try as_process.wait();
+    const ld_term = try link(allocator, object_filename, executable_filename);
 
     switch (ld_term) {
         .Exited => |code| if (code != 0) {
@@ -84,4 +81,16 @@ pub fn main() !void {
         },
         else => try stderr.print("fatal error when executing ld: {any}\n", .{ld_term}),
     }
+}
+
+fn assemble(allocator: std.mem.Allocator, assembly_path: []const u8, object_path: []const u8) !std.process.Child.Term {
+    var as_process = std.process.Child.init(&.{ "as", assembly_path, "-o", object_path }, allocator);
+    try as_process.spawn();
+    return try as_process.wait();
+}
+
+fn link(allocator: std.mem.Allocator, object_path: []const u8, executable_path: []const u8) !std.process.Child.Term {
+    var ld_process = std.process.Child.init(&.{ "ld", object_path, "-o", executable_path }, allocator);
+    try ld_process.spawn();
+    return try ld_process.wait();
 }
