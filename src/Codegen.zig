@@ -20,66 +20,35 @@ pub fn init(ir: Ir) Self {
 }
 
 fn emitInit(self: *Self) !void {
-    try self.assembly.appendSlice(
-        \\.section .text
-        \\.global _start
-        \\
-        \\print:
-        \\    pushq %rdi
-        \\    movq $1, %rax
-        \\    movq %rdi, %rsi
-        \\    movq $1, %rdi
-        \\    movq $1, %rdx
-        \\    syscall
-        \\    popq %rdi
-        \\    retq
-        \\
-        \\input:
-        \\    pushq %rdi
-        \\    xorq %rax, %rax
-        \\    movq %rdi, %rsi
-        \\    xorq %rdi, %rdi
-        \\    movq $1, %rdx
-        \\    syscall
-        \\    popq %rdi
-        \\    retq
-        \\
-        \\_start:
-        \\    movq $9, %rax
-        \\    xorq %rdi, %rdi
-        \\    movq $65536, %rsi
-        \\    movq $3, %rdx
-        \\    movq $34, %r10
-        \\    movq $-1, %r8
-        \\    xorq %r9, %r9
-        \\    syscall
-        \\    movq %rax, %rdi
-        \\    pushq %rax
-        \\    cmp $-1, %rax
-        \\    je EXIT_FAILURE
-        \\
-    );
+    const init_asm = @embedFile("asm/init.s");
+    try self.emit(init_asm);
     self.indents += 1;
 }
 
 fn emitExit(self: *Self) !void {
+    // munmap(*saved pointer from mmap*, 65536)
     try self.emitIndent("popq %rdi\n");
     try self.emitIndent("movq $11, %rax\n");
     try self.emitIndent("movq $65536, %rsi\n");
     try self.emitIndent("syscall\n");
 
+    // check for error if and jump if errorneous
     try self.emitIndent("cmp $-1, %rax\n");
     try self.emitIndent("je EXIT_FAILURE\n");
 
+    // return 0
     try self.emitIndent("movq $60, %rax\n");
     try self.emitIndent("movq $0, %rdi\n");
     try self.emitIndent("syscall\n");
 
     try self.emitIndent("EXIT_FAILURE:\n");
     self.indents += 1;
+
+    // return 1
     try self.emitIndent("movq $60, %rax\n");
     try self.emitIndent("movq $1, %rdi\n");
     try self.emitIndent("syscall\n");
+    self.indents -= 1;
 }
 
 fn emit(self: *Self, assembly: []const u8) !void {
