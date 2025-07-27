@@ -21,120 +21,83 @@ pub fn init(ir: Ir) Self {
 
 fn emitInit(self: *Self) !void {
     const init_asm = @embedFile("asm/init.s");
-    try self.emit(init_asm);
+    try self.emit("{s}", .{init_asm});
     self.indents += 1;
 }
 
 fn emitExit(self: *Self) !void {
-    // munmap(*saved pointer from mmap*, 65536)
-    try self.emitIndent("popq %rdi\n");
-    try self.emitIndent("movq $11, %rax\n");
-    try self.emitIndent("movq $65536, %rsi\n");
-    try self.emitIndent("syscall\n");
-
-    // check for error if and jump if erroneous
-    try self.emitIndent("cmp $-1, %rax\n");
-    try self.emitIndent("je EXIT_FAILURE\n");
-
-    // return 0
-    try self.emitIndent("movq $60, %rax\n");
-    try self.emitIndent("movq $0, %rdi\n");
-    try self.emitIndent("syscall\n");
-
-    try self.emitIndent("EXIT_FAILURE:\n");
-    self.indents += 1;
-
-    // return 1
-    try self.emitIndent("movq $60, %rax\n");
-    try self.emitIndent("movq $1, %rdi\n");
-    try self.emitIndent("syscall\n");
-    self.indents -= 1;
+    const exit_asm = @embedFile("asm/exit.s");
+    try self.emit("{s}", .{exit_asm});
 }
 
-fn emit(self: *Self, assembly: []const u8) !void {
-    try self.assembly.appendSlice(assembly);
+fn emit(self: *Self, comptime fmt: []const u8, args: anytype) !void {
+    try self.assembly.writer().print(fmt, args);
 }
 
-fn emitIndent(self: *Self, assembly: []const u8) !void {
-    try self.indent();
-    try self.emit(assembly);
+fn emitIndent(self: *Self, comptime fmt: []const u8, args: anytype) !void {
+    const SPACES = 4;
+
+    try self.indent(SPACES);
+    try self.emit(fmt, args);
 }
 
-fn indent(self: *Self) !void {
-    for (0..self.indents) |_| {
-        try self.assembly.appendSlice("    ");
-    }
+fn indent(self: *Self, n_spaces: usize) !void {
+    try self.assembly.appendNTimes(' ', self.indents * n_spaces);
 }
 
 const Commands = struct {
     fn emitPlus(self: *Self, n: u64) !void {
-        const assembly = try std.fmt.allocPrint(self.allocator, "addb ${d}, (%rdi)\n", .{n});
-        defer self.allocator.free(assembly);
-
-        try self.emitIndent(assembly);
+        try self.emitIndent("addb ${d}, (%rdi)\n", .{n});
     }
 
     fn emitMinus(self: *Self, n: u64) !void {
-        const assembly = try std.fmt.allocPrint(self.allocator, "subb ${d}, (%rdi)\n", .{n});
-        defer self.allocator.free(assembly);
-
-        try self.emitIndent(assembly);
+        try self.emitIndent("subb ${d}, (%rdi)\n", .{n});
     }
 
     fn emitLeft(self: *Self, n: u64) !void {
-        const assembly = try std.fmt.allocPrint(self.allocator, "leaq -{d}(%rdi), %rdi\n", .{n});
-        defer self.allocator.free(assembly);
-
-        try self.emitIndent(assembly);
+        try self.emitIndent("leaq -{d}(%rdi), %rdi\n", .{n});
     }
 
     fn emitRight(self: *Self, n: u64) !void {
-        const assembly = try std.fmt.allocPrint(self.allocator, "leaq {d}(%rdi), %rdi\n", .{n});
-        defer self.allocator.free(assembly);
-
-        try self.emitIndent(assembly);
+        try self.emitIndent("leaq {d}(%rdi), %rdi\n", .{n});
     }
 
     fn emitLoopStart(self: *Self, start: anytype) !void {
         const name = start.name;
-        try self.emitIndent(name);
-        try self.emit(":\n");
+        try self.emitIndent("{s}:\n", .{name});
+
         self.indents += 1;
-        try self.emitIndent("movb (%rdi), %cl\n");
-        try self.emitIndent("testb %cl, (%rdi)\n");
+
+        try self.emitIndent("movb (%rdi), %cl\n", .{});
+        try self.emitIndent("testb %cl, (%rdi)\n", .{});
 
         const identifier = name[10..];
-
-        try self.emitIndent("jz LOOP_END");
-        try self.emit(identifier);
-        try self.emit("\n");
+        try self.emitIndent("jz LOOP_END{s}\n", .{identifier});
     }
 
     fn emitLoopEnd(self: *Self, end: anytype) !void {
+        try self.emitIndent("movb (%rdi), %cl\n", .{});
+        try self.emitIndent("testb %cl, (%rdi)\n", .{});
+
         const start_name = self.instructions.instructions.items[end.start_index].loop_start.name;
-        try self.emitIndent("movb (%rdi), %cl\n");
-        try self.emitIndent("testb %cl, (%rdi)\n");
-        const identifier = start_name[10..];
-        try self.emitIndent("jnz ");
-        try self.emit(start_name);
-        try self.emit("\n");
+        try self.emitIndent("jnz {s}\n", .{start_name});
+
         self.indents -= 1;
 
-        try self.emitIndent("LOOP_END");
-        try self.emit(identifier);
-        try self.emit(":\n");
+        const identifier = start_name[10..];
+        try self.emitIndent("LOOP_END{s}:\n", .{identifier});
     }
 
     fn emitPrint(self: *Self) !void {
-        try self.emitIndent("callq print\n");
+        try self.emitIndent("callq print\n", .{});
     }
 
     fn emitInput(self: *Self) !void {
-        try self.emitIndent("callq input\n");
+        try self.emitIndent("callq input\n", .{});
     }
 
     fn emitZero(self: *Self) !void {
-        try self.emitIndent("movb $0, (%rdi)\n");
+        try self.emitIndent("movb $0, (%rdi)\n", .{});
     }
 };
 
