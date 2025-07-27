@@ -19,7 +19,7 @@ pub fn init(ir: Ir) Self {
     };
 }
 
-fn emitBoilerplate(self: *Self) !void {
+fn emitInit(self: *Self) !void {
     try self.assembly.appendSlice(
         \\.section .text
         \\.global _start
@@ -187,7 +187,7 @@ fn emitNext(self: *Self) !?void {
 }
 
 pub fn compile(self: *Self) !void {
-    try self.emitBoilerplate();
+    try self.emitInit();
     while (try self.emitNext()) |_| {}
     try self.emitExit();
 }
