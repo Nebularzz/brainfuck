@@ -82,14 +82,14 @@ const Commands = struct {
     }
 
     fn emitLeft(self: *Self, n: u64) !void {
-        const assembly = try std.fmt.allocPrint(self.allocator, "subq ${d}, %rdi\n", .{n});
+        const assembly = try std.fmt.allocPrint(self.allocator, "leaq -{d}(%rdi), %rdi\n", .{n});
         defer self.allocator.free(assembly);
 
         try self.emitIndent(assembly);
     }
 
     fn emitRight(self: *Self, n: u64) !void {
-        const assembly = try std.fmt.allocPrint(self.allocator, "addq ${d}, %rdi\n", .{n});
+        const assembly = try std.fmt.allocPrint(self.allocator, "leaq {d}(%rdi), %rdi\n", .{n});
         defer self.allocator.free(assembly);
 
         try self.emitIndent(assembly);
