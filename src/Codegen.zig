@@ -23,7 +23,7 @@ fn emitBoilerplate(self: *Self) !void {
     try self.assembly.appendSlice(
         \\.section .bss
         \\buffer:
-        \\    .skip 16384
+        \\    .skip 32768
         \\
         \\.section .text
         \\.global _start
