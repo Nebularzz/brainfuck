@@ -62,7 +62,7 @@ const Commands = struct {
         try self.emitIndent("leaq {d}(%rdi), %rdi\n", .{n});
     }
 
-    fn emitLoopStart(self: *Self, start: anytype) !void {
+    fn emitLoopStart(self: *Self, start: Ir.Instruction.LoopEnd) !void {
         const name = start.name;
         try self.emitIndent("{s}:\n", .{name});
 
@@ -75,11 +75,11 @@ const Commands = struct {
         try self.emitIndent("jz LOOP_END{s}\n", .{identifier});
     }
 
-    fn emitLoopEnd(self: *Self, end: anytype) !void {
+    fn emitLoopEnd(self: *Self, end: usize) !void {
         try self.emitIndent("movb (%rdi), %cl\n", .{});
         try self.emitIndent("testb %cl, (%rdi)\n", .{});
 
-        const start_name = self.instructions.instructions.items[end.start_index].loop_start.name;
+        const start_name = self.instructions.instructions.items[end].loop_start.name;
         try self.emitIndent("jnz {s}\n", .{start_name});
 
         self.indents -= 1;

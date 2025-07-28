@@ -9,17 +9,17 @@ pub const ParseError = error{
 };
 
 pub const Instruction = union(enum) {
+    pub const LoopEnd = struct {
+        name: []const u8,
+        end_index: usize,
+    };
+
     plus: u64,
     minus: u64,
     left: u64,
     right: u64,
-    loop_start: struct {
-        name: []const u8,
-        end_index: usize,
-    },
-    loop_end: struct {
-        start_index: usize,
-    },
+    loop_start: LoopEnd,
+    loop_end: usize,
     print,
     input,
     zero,
@@ -75,9 +75,7 @@ pub fn init(allocator: std.mem.Allocator, source: []const u8) !Ir {
                 loop_depth -= 1;
 
                 try instructions.append(.{
-                    .loop_end = .{
-                        .start_index = start_index,
-                    },
+                    .loop_end = start_index,
                 });
 
                 instructions.items[start_index].loop_start.end_index = instructions.items.len - 1;

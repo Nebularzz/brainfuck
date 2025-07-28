@@ -79,7 +79,7 @@ pub fn optimize(self: *Ir) !void {
             .loop_end => {
                 const idx = loop_indices.pop() orelse return error.InvalidLoop;
                 optimized_instructions.items[idx].loop_start.end_index = index;
-                try optimized_instructions.append(.{ .loop_end = .{ .start_index = idx } });
+                try optimized_instructions.append(.{ .loop_end = idx });
             },
             .print, .input => try optimized_instructions.append(inst),
             .plus => try optimized_instructions.append(.{ .plus = countConsecutive(&iterator, .plus) + 1 }),
