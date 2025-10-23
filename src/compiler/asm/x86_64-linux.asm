@@ -8,7 +8,7 @@ _start:
   movq $memory, %rdi
 {s}
   movq $60, %rax
-  movq $0, %rdi
+  xorq %rdi, %rdi
   syscall
 
 plus:
@@ -31,6 +31,15 @@ outp:
   movq $1, %rax
   movq %rdi, %rsi
   movq $1, %rdi
+  movq $1, %rdx
+  syscall
+  movq %rsi, %rdi
+  ret
+
+inp:
+  xorq %rax, %rax
+  movq %rdi, %rsi
+  movq $0, %rdi
   movq $1, %rdx
   syscall
   movq %rsi, %rdi
