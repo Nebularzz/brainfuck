@@ -1,6 +1,6 @@
 const std = @import("std");
 const ir = @import("compiler/ir.zig");
-const codegen = @import("compiler/Codegen.zig");
+const codegen = @import("compiler/codegen.zig");
 
 var stdout_buf: [4096]u8 = undefined;
 
