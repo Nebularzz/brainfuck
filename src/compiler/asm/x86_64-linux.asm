@@ -39,7 +39,7 @@ outp:
 inp:
   xorq %rax, %rax
   movq %rdi, %rsi
-  movq $0, %rdi
+  xorq %rdi, %rdi
   movq $1, %rdx
   syscall
   movq %rsi, %rdi
