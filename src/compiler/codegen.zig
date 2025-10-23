@@ -37,6 +37,6 @@ pub const @"x86_64-linux" = struct {
             }
         }
 
-        return std.fmt.allocPrint(allocator, @embedFile("asm/x86_64-linux.a"), .{code.items});
+        return std.fmt.allocPrint(allocator, @embedFile("asm/x86_64-linux.asm"), .{code.items});
     }
 };
