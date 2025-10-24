@@ -12,8 +12,16 @@ pub const @"x86_64-linux" = struct {
                 .minus => |c| try code.print(allocator, "subq ${d}, (%rdi)\n", .{c}),
                 .left => |c| try code.print(allocator, "leaq -{d}(%rdi), %rdi\n", .{c}),
                 .right => |c| try code.print(allocator, "leaq {d}(%rdi), %rdi\n", .{c}),
-                .output => try code.print(allocator, "callq outp\n", .{}),
-                .input => try code.print(allocator, "callq inp\n", .{}),
+                .output => |c| {
+                    for (0..c) |_| {
+                        try code.print(allocator, "callq outp\n", .{});
+                    }
+                },
+                .input => |c| {
+                    for (0..c) |_| {
+                        try code.print(allocator, "callq inp\n", .{});
+                    }
+                },
                 .loop_start => |end| {
                     const format_string =
                         \\_loop_start_{x}:
