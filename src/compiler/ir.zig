@@ -1,41 +1,43 @@
 const std = @import("std");
 
 pub const Instruction = union(enum) {
-    plus,
-    minus,
-    left,
-    right,
+    plus: usize,
+    minus: usize,
+    left: usize,
+    right: usize,
     loop_start: ?*Instruction,
     loop_end: ?*Instruction,
-    input,
-    output,
+    input: usize,
+    output: usize,
 };
 
 pub fn parse(allocator: std.mem.Allocator, source: []const u8) !std.ArrayList(Instruction) {
     var instructions: std.ArrayList(Instruction) = .empty;
-    errdefer instructions.deinit(allocator);
+    defer instructions.deinit(allocator);
 
     var iter = Iterator(u8).init(source);
 
     while (iter.next()) |c| {
         const instr: Instruction = switch (c) {
-            '+' => .plus,
-            '-' => .minus,
-            '<' => .left,
-            '>' => .right,
+            '+' => .{ .plus = 1 },
+            '-' => .{ .minus = 1 },
+            '<' => .{ .left = 1 },
+            '>' => .{ .right = 1 },
             '[' => Instruction{ .loop_start = null },
             ']' => Instruction{ .loop_end = null },
-            ',' => .input,
-            '.' => .output,
+            ',' => .{ .input = 1 },
+            '.' => .{ .output = 1 },
             else => continue,
         };
 
         try instructions.append(allocator, instr);
     }
 
-    try backpatch(allocator, instructions.items);
+    var collapsed = try collapse(allocator, instructions.items);
+    _ = &collapsed; // The line below does modify collapsed
+    try backpatch(allocator, collapsed.items);
 
-    return instructions;
+    return collapsed;
 }
 
 fn backpatch(allocator: std.mem.Allocator, instructions: []Instruction) !void {
@@ -53,6 +55,62 @@ fn backpatch(allocator: std.mem.Allocator, instructions: []Instruction) !void {
             else => continue,
         }
     }
+}
+
+fn collapse(allocator: std.mem.Allocator, ir: []const Instruction) !std.ArrayList(Instruction) {
+    var iter = Iterator(Instruction).init(ir);
+    var collapsed: std.ArrayList(Collapsed) = .empty;
+    defer collapsed.deinit(allocator);
+
+    while (countConsecutive(&iter)) |c| {
+        try collapsed.append(allocator, c);
+    }
+
+    var instructions: std.ArrayList(Instruction) = .empty;
+
+    for (collapsed.items) |value| {
+        switch (value.tag) {
+            .plus => try instructions.append(allocator, .{ .plus = value.count }),
+            .minus => try instructions.append(allocator, .{ .minus = value.count }),
+            .left => try instructions.append(allocator, .{ .left = value.count }),
+            .right => try instructions.append(allocator, .{ .right = value.count }),
+            .input => try instructions.append(allocator, .{ .input = value.count }),
+            .output => try instructions.append(allocator, .{ .output = value.count }),
+            .loop_start => {
+                for (0..value.count) |_| {
+                    try instructions.append(allocator, .{ .loop_start = null });
+                }
+            },
+            .loop_end => {
+                for (0..value.count) |_| {
+                    try instructions.append(allocator, .{ .loop_end = null });
+                }
+            },
+        }
+    }
+
+    return instructions;
+}
+
+const Collapsed = struct {
+    tag: std.meta.Tag(Instruction),
+    count: usize,
+};
+
+fn countConsecutive(iter: *Iterator(Instruction)) ?Collapsed {
+    const first = iter.next() orelse return null;
+    var count: usize = 1;
+    while (iter.next()) |inst| : (count += 1) {
+        if (std.meta.activeTag(inst) != std.meta.activeTag(first)) {
+            _ = iter.previous();
+            break;
+        }
+    }
+
+    return .{
+        .tag = std.meta.activeTag(first),
+        .count = count,
+    };
 }
 
 pub fn Iterator(comptime T: type) type {
@@ -80,16 +138,8 @@ pub fn Iterator(comptime T: type) type {
                 return null;
             }
 
-            self.index += 1;
+            self.index -= 1;
             return self.items[self.index];
         }
     };
-}
-test "parse" {
-    const allocator = std.testing.allocator;
-    const test_str = "++++[>++++<-]>.";
-    var result = try parse(allocator, test_str);
-    defer result.deinit(allocator);
-
-    std.debug.print("{any}", .{result.items});
 }

@@ -11,22 +11,6 @@ _start:
   xorq %rdi, %rdi
   syscall
 
-plus:
-  addb $1, (%rdi)
-  ret
-
-minus:
-  subb $1, (%rdi)
-  ret
-
-left:
-  decq %rdi
-  ret
-
-right:
-  incq %rdi
-  ret
-
 outp:
   movq $1, %rax
   movq %rdi, %rsi

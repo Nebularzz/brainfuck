@@ -8,10 +8,10 @@ pub const @"x86_64-linux" = struct {
 
         for (instrs) |*inst| {
             switch (inst.*) {
-                .plus => try code.print(allocator, "callq plus\n", .{}),
-                .minus => try code.print(allocator, "callq minus\n", .{}),
-                .left => try code.print(allocator, "callq left\n", .{}),
-                .right => try code.print(allocator, "callq right\n", .{}),
+                .plus => |c| try code.print(allocator, "addq ${d}, (%rdi)\n", .{c}),
+                .minus => |c| try code.print(allocator, "subq ${d}, (%rdi)\n", .{c}),
+                .left => |c| try code.print(allocator, "leaq -{d}(%rdi), %rdi\n", .{c}),
+                .right => |c| try code.print(allocator, "leaq {d}(%rdi), %rdi\n", .{c}),
                 .output => try code.print(allocator, "callq outp\n", .{}),
                 .input => try code.print(allocator, "callq inp\n", .{}),
                 .loop_start => |end| {
