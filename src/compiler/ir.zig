@@ -34,7 +34,8 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !std.ArrayList(In
     }
 
     var collapsed = try collapse(allocator, instructions.items);
-    _ = &collapsed; // The line below does modify collapsed
+    errdefer collapsed.deinit(allocator);
+
     try backpatch(allocator, collapsed.items);
 
     return collapsed;
@@ -67,6 +68,7 @@ fn collapse(allocator: std.mem.Allocator, ir: []const Instruction) !std.ArrayLis
     }
 
     var instructions: std.ArrayList(Instruction) = .empty;
+    errdefer instructions.deinit(allocator);
 
     for (collapsed.items) |value| {
         switch (value.tag) {
