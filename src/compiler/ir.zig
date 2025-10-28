@@ -45,17 +45,15 @@ fn backpatch(allocator: std.mem.Allocator, instructions: []Instruction) !void {
     var stack: std.ArrayList(*Instruction) = .empty;
     defer stack.deinit(allocator);
 
-    for (instructions) |*i| {
-        switch (i.*) {
-            .loop_start => try stack.append(allocator, i),
-            .loop_end => {
-                const start = stack.pop() orelse return error.MismatchedLoops;
-                start.loop_start = i;
-                i.loop_end = start;
-            },
-            else => continue,
-        }
-    }
+    for (instructions) |*i| switch (i.*) {
+        .loop_start => try stack.append(allocator, i),
+        .loop_end => {
+            const start = stack.pop() orelse return error.MismatchedLoops;
+            start.loop_start = i;
+            i.loop_end = start;
+        },
+        else => continue,
+    };
 }
 
 fn collapse(allocator: std.mem.Allocator, ir: []const Instruction) !std.ArrayList(Instruction) {
@@ -70,26 +68,24 @@ fn collapse(allocator: std.mem.Allocator, ir: []const Instruction) !std.ArrayLis
     var instructions: std.ArrayList(Instruction) = .empty;
     errdefer instructions.deinit(allocator);
 
-    for (collapsed.items) |value| {
-        switch (value.tag) {
-            .plus => try instructions.append(allocator, .{ .plus = value.count }),
-            .minus => try instructions.append(allocator, .{ .minus = value.count }),
-            .left => try instructions.append(allocator, .{ .left = value.count }),
-            .right => try instructions.append(allocator, .{ .right = value.count }),
-            .input => try instructions.append(allocator, .{ .input = value.count }),
-            .output => try instructions.append(allocator, .{ .output = value.count }),
-            .loop_start => {
-                for (0..value.count) |_| {
-                    try instructions.append(allocator, .{ .loop_start = null });
-                }
-            },
-            .loop_end => {
-                for (0..value.count) |_| {
-                    try instructions.append(allocator, .{ .loop_end = null });
-                }
-            },
-        }
-    }
+    for (collapsed.items) |value| switch (value.tag) {
+        .plus => try instructions.append(allocator, .{ .plus = value.count }),
+        .minus => try instructions.append(allocator, .{ .minus = value.count }),
+        .left => try instructions.append(allocator, .{ .left = value.count }),
+        .right => try instructions.append(allocator, .{ .right = value.count }),
+        .input => try instructions.append(allocator, .{ .input = value.count }),
+        .output => try instructions.append(allocator, .{ .output = value.count }),
+        .loop_start => {
+            for (0..value.count) |_| {
+                try instructions.append(allocator, .{ .loop_start = null });
+            }
+        },
+        .loop_end => {
+            for (0..value.count) |_| {
+                try instructions.append(allocator, .{ .loop_end = null });
+            }
+        },
+    };
 
     return instructions;
 }
