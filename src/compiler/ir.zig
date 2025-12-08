@@ -9,6 +9,7 @@ pub const Instruction = union(enum) {
     loop_end: ?*Instruction,
     input: usize,
     output: usize,
+    zero,
 };
 
 pub fn parse(allocator: std.mem.Allocator, source: []const u8) !std.ArrayList(Instruction) {
@@ -33,7 +34,10 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !std.ArrayList(In
         try instructions.append(allocator, instr);
     }
 
-    var collapsed = try collapse(allocator, instructions.items);
+    var zeroed = try zero(allocator, instructions.items);
+    defer zeroed.deinit(allocator);
+
+    var collapsed = try collapse(allocator, zeroed.items);
     errdefer collapsed.deinit(allocator);
 
     try backpatch(allocator, collapsed.items);
@@ -54,6 +58,10 @@ fn backpatch(allocator: std.mem.Allocator, instructions: []Instruction) !void {
         },
         else => continue,
     };
+
+    if (stack.items.len != 0) {
+        return error.MismatchedLoops;
+    }
 }
 
 fn collapse(allocator: std.mem.Allocator, ir: []const Instruction) !std.ArrayList(Instruction) {
@@ -85,6 +93,7 @@ fn collapse(allocator: std.mem.Allocator, ir: []const Instruction) !std.ArrayLis
                 try instructions.append(allocator, .{ .loop_end = null });
             }
         },
+        .zero => try instructions.append(allocator, .zero),
     };
 
     return instructions;
@@ -140,4 +149,55 @@ pub fn Iterator(comptime T: type) type {
             return self.items[self.index];
         }
     };
+}
+
+fn zero(allocator: std.mem.Allocator, ir: []const Instruction) !std.ArrayList(Instruction) {
+    var with_zeros: std.ArrayList(Instruction) = .empty;
+    errdefer with_zeros.deinit(allocator);
+
+    const State = enum {
+        start,
+        zero,
+        append,
+        end,
+    };
+
+    var index: usize = 0;
+    state: switch (State.start) {
+        .start => {
+            if (index >= ir.len)
+                continue :state .end;
+
+            switch (ir[index]) {
+                .loop_start => continue :state .zero,
+                else => continue :state .append,
+            }
+        },
+        .zero => {
+            if (index + 2 >= ir.len) {
+                continue :state .append;
+            }
+
+            const plus_minus = ir[index + 1];
+            const close = ir[index + 2];
+
+            if ((plus_minus == .plus or plus_minus == .minus) and close == .loop_end) {
+                try with_zeros.append(allocator, .zero);
+                index += 3;
+            } else {
+                try with_zeros.append(allocator, ir[index]);
+                index += 1;
+            }
+
+            continue :state .start;
+        },
+        .append => {
+            try with_zeros.append(allocator, ir[index]);
+            index += 1;
+            continue :state .start;
+        },
+        .end => {},
+    }
+
+    return with_zeros;
 }

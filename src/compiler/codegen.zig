@@ -35,6 +35,7 @@ pub const @"x86_64-linux" = struct {
                 ;
                 try code.print(allocator, format_string, .{ @intFromPtr(inst), @intFromPtr(start) });
             },
+            .zero => try code.print(allocator, "movb $0, (%rdi)\n", .{}),
         };
 
         return std.fmt.allocPrint(allocator, @embedFile("asm/x86_64-linux.asm"), .{code.items});
