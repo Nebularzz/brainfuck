@@ -1,6 +1,6 @@
 .{
     .name = .brainfuck,
-    .version = "0.3.0",
+    .version = "0.4.1",
     .minimum_zig_version = "0.15.2",
     .fingerprint = 0x8616795ef429b46f, // Changing this has security and trust implications.
     .paths = .{
